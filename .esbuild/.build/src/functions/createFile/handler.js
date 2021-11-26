@@ -40033,14 +40033,6 @@ __export(exports, {
   main: () => main
 });
 
-// src/libs/apiGateway.ts
-var formatJSONResponse = (response) => {
-  return {
-    statusCode: 200,
-    body: JSON.stringify(response)
-  };
-};
-
 // src/libs/lambda.ts
 var import_core = __toModule(require_core());
 var import_http_json_body_parser = __toModule(require_http_json_body_parser());
@@ -40050,6 +40042,7 @@ var middyfy = (handler) => {
 
 // src/functions/createFile/handler.ts
 var import_intuit_oauth = __toModule(require_OAuthClient());
+var AWS = __toModule(require("aws-sdk"));
 var hello = async (event) => {
   const oauthClient = new import_intuit_oauth.default({
     clientId: "AB7UHYmMY5wJ1EkvJ6ucUC4IuUObLIeLktIyTGR4pOkUPy77qO",
@@ -40057,12 +40050,18 @@ var hello = async (event) => {
     environment: "sandbox",
     redirectUri: "http://localhost:3000/dev/createFile"
   });
-  const parseRedirect = `http://localhost:3000/dev/createFile?code=${event.queryStringParameters.code}&state=${event.queryStringParameters.state}&realmId=${event.queryStringParameters.realmId}`;
-  const tokenDetails = await oauthClient.createToken(parseRedirect);
-  return formatJSONResponse({
-    message: tokenDetails.token,
-    event
+  const dynamo = new AWS.DynamoDB.DocumentClient({
+    region: "localhost",
+    endpoint: "http://localhost:8000"
   });
+  await dynamo.put({
+    TableName: "HamzaTable",
+    Item: {
+      realmId: event.queryStringParameters.realmId,
+      code: event.queryStringParameters.code,
+      state: event.queryStringParameters.state
+    }
+  }).promise();
 };
 var main = middyfy(hello);
 // Annotate the CommonJS export names for ESM import in node:

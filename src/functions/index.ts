@@ -1,3 +1,4 @@
-export { default as createFile } from './createFile';
-export { default as getFile } from './getFile';
-export { default as deleteFile } from './deleteFile';
+export { default as saveRealmIdAndCode } from './saveRealmIdAndCode';
+export { default as getAuthorization } from './getAuthorization';
+export { default as refreshToken } from './refreshToken';
+export { default as getToken } from './getToken';

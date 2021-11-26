@@ -40028,6 +40028,124 @@ var require_OAuthClient = __commonJS({
   }
 });
 
+// node_modules/opn/node_modules/is-wsl/index.js
+var require_is_wsl = __commonJS({
+  "node_modules/opn/node_modules/is-wsl/index.js"(exports, module2) {
+    "use strict";
+    var os = require("os");
+    var fs = require("fs");
+    var isWsl = () => {
+      if (process.platform !== "linux") {
+        return false;
+      }
+      if (os.release().includes("Microsoft")) {
+        return true;
+      }
+      try {
+        return fs.readFileSync("/proc/version", "utf8").includes("Microsoft");
+      } catch (err) {
+        return false;
+      }
+    };
+    if (process.env.__IS_WSL_TEST__) {
+      module2.exports = isWsl;
+    } else {
+      module2.exports = isWsl();
+    }
+  }
+});
+
+// node_modules/opn/index.js
+var require_opn = __commonJS({
+  "node_modules/opn/index.js"(exports, module2) {
+    "use strict";
+    var { promisify } = require("util");
+    var path = require("path");
+    var childProcess = require("child_process");
+    var isWsl = require_is_wsl();
+    var pExecFile = promisify(childProcess.execFile);
+    var wslToWindowsPath = async (path2) => {
+      const { stdout } = await pExecFile("wslpath", ["-w", path2]);
+      return stdout.trim();
+    };
+    module2.exports = async (target, options) => {
+      if (typeof target !== "string") {
+        throw new TypeError("Expected a `target`");
+      }
+      options = __spreadValues({
+        wait: false
+      }, options);
+      let command;
+      let appArguments = [];
+      const cliArguments = [];
+      const childProcessOptions = {};
+      if (Array.isArray(options.app)) {
+        appArguments = options.app.slice(1);
+        options.app = options.app[0];
+      }
+      if (process.platform === "darwin") {
+        command = "open";
+        if (options.wait) {
+          cliArguments.push("-W");
+        }
+        if (options.app) {
+          cliArguments.push("-a", options.app);
+        }
+      } else if (process.platform === "win32" || isWsl) {
+        command = "cmd" + (isWsl ? ".exe" : "");
+        cliArguments.push("/c", "start", '""', "/b");
+        target = target.replace(/&/g, "^&");
+        if (options.wait) {
+          cliArguments.push("/wait");
+        }
+        if (options.app) {
+          if (isWsl && options.app.startsWith("/mnt/")) {
+            const windowsPath = await wslToWindowsPath(options.app);
+            options.app = windowsPath;
+          }
+          cliArguments.push(options.app);
+        }
+        if (appArguments.length > 0) {
+          cliArguments.push(...appArguments);
+        }
+      } else {
+        if (options.app) {
+          command = options.app;
+        } else {
+          const useSystemXdgOpen = process.versions.electron || process.platform === "android";
+          command = useSystemXdgOpen ? "xdg-open" : path.join(__dirname, "xdg-open");
+        }
+        if (appArguments.length > 0) {
+          cliArguments.push(...appArguments);
+        }
+        if (!options.wait) {
+          childProcessOptions.stdio = "ignore";
+          childProcessOptions.detached = true;
+        }
+      }
+      cliArguments.push(target);
+      if (process.platform === "darwin" && appArguments.length > 0) {
+        cliArguments.push("--args", ...appArguments);
+      }
+      const subprocess = childProcess.spawn(command, cliArguments, childProcessOptions);
+      if (options.wait) {
+        return new Promise((resolve, reject) => {
+          subprocess.once("error", reject);
+          subprocess.once("close", (exitCode) => {
+            if (exitCode > 0) {
+              reject(new Error(`Exited with code ${exitCode}`));
+              return;
+            }
+            resolve(subprocess);
+          });
+        });
+      }
+      subprocess.unref();
+      return subprocess;
+    };
+  }
+});
+
 // src/functions/getFile/handler.ts
 __export(exports, {
   main: () => main
@@ -40050,6 +40168,7 @@ var middyfy = (handler) => {
 
 // src/functions/getFile/handler.ts
 var import_intuit_oauth = __toModule(require_OAuthClient());
+var import_opn = __toModule(require_opn());
 var hello = async (event) => {
   const oauthClient = new import_intuit_oauth.default({
     clientId: "AB7UHYmMY5wJ1EkvJ6ucUC4IuUObLIeLktIyTGR4pOkUPy77qO",
@@ -40057,8 +40176,14 @@ var hello = async (event) => {
     environment: "sandbox",
     redirectUri: "http://localhost:3000/dev/createFile"
   });
-  var authUri = oauthClient.authorizeUri({ scope: [import_intuit_oauth.default.scopes.Accounting, import_intuit_oauth.default.scopes.OpenId], state: "testState" });
-  return formatJSONResponse({ authUri, event });
+  var authUri = oauthClient.authorizeUri({
+    scope: [import_intuit_oauth.default.scopes.Accounting, import_intuit_oauth.default.scopes.OpenId],
+    state: "testState"
+  });
+  if (authUri) {
+    (0, import_opn.default)(authUri);
+    return formatJSONResponse({ message: authUri });
+  }
 };
 var main = middyfy(hello);
 // Annotate the CommonJS export names for ESM import in node:

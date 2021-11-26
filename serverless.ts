@@ -1,13 +1,18 @@
 import type { AWS } from "@serverless/typescript";
 
-import createFile from "@functions/createFile";
-import getFile from "@functions/getFile";
-import deleteFile from "@functions/deleteFile";
+import saveRealmIdAndCode from "@functions/saveRealmIdAndCode";
+import getAuthorization from "@functions/getAuthorization";
+import refreshToken from "@functions/refreshToken";
+import getToken from "@functions/getToken";
 
 const serverlessConfiguration: AWS = {
   service: "serverless-s3-local-example",
   frameworkVersion: "2",
-  plugins: ["serverless-esbuild", "serverless-s3-local", "serverless-offline"],
+  plugins: [
+    "serverless-esbuild",
+    "serverless-offline",
+    "serverless-dynamodb-local",
+  ],
   provider: {
     name: "aws",
     runtime: "nodejs14.x",
@@ -21,16 +26,17 @@ const serverlessConfiguration: AWS = {
     },
     lambdaHashingVersion: "20201221",
   },
-  functions: { createFile, getFile, deleteFile },
+  functions: { saveRealmIdAndCode, getAuthorization, refreshToken, getToken },
   package: { individually: true },
   custom: {
-    serverlessOfflineS3: {
-      endpoint: "http://localhost:9000",
-      region: "eu-west-1",
-      accessKey: "minioadmin",
-      secretKey: "minioadmin",
+    dynamodb: {
+      stages: ["dev"],
+      start: {
+        port: 8000,
+        migrate: true,
+        seed: true,
+      },
     },
-
     esbuild: {
       bundle: true,
       minify: false,
@@ -44,10 +50,17 @@ const serverlessConfiguration: AWS = {
   },
   resources: {
     Resources: {
-      NewResource: {
-        Type: "AWS::S3::Bucket",
+      TypesciptTable: {
+        Type: "AWS::DynamoDB::Table",
+
         Properties: {
-          BucketName: "local-bucket",
+          TableName: "HamzaTable",
+
+          AttributeDefinitions: [{ AttributeName: "realmId", AttributeType: "S" }],
+
+          KeySchema: [{ AttributeName: "realmId", KeyType: "HASH" }],
+
+          BillingMode: "PAY_PER_REQUEST",
         },
       },
     },
